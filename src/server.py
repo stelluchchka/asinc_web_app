@@ -24,12 +24,11 @@ async def create_table(app):
 async def check_jwt(request: Request):
     auth_header = request.headers.get('Authorization')
     if auth_header:
-        print("\n1")
         token = auth_header.split()[1]
         try:
-            print("\n2")
             payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
             request.ctx.user_id = payload['user_id']
+            request.ctx.isAdmin = payload['isAdmin']
         except jwt.PyJWTError:
             pass
 
@@ -79,6 +78,31 @@ async def create_user(request):
     except:
         return json({'error': 'Invalid JSON'}, status=400)
 
+@app.post("/add_admin", ignore_body=False)
+async def create_admin(request):
+    try:
+        data = request.json
+        full_name = data.get('full_name')
+        email = data.get('email')
+        password = data.get('password')
+        if not full_name or not password or not email:
+            return json({'error': 'full_name or password or email missing'}, status=400)
+        try:
+            async with request.ctx.session.begin() as conn:
+                stmt = select(User).where(User.email.in_([email]))
+                user_result = await conn.execute(stmt)
+                user = user_result.scalar_one_or_none()
+                if (user):
+                    return json({'message': "Ошибка при создании администратора: вы уже зарегистрированы"}, status=400)
+                user = User(full_name=full_name, email=email, password=password, isAdmin=True)
+                conn.add(user)
+                await conn.commit()
+            return json({'message': user.to_dict()}, status=200)
+        except Exception as e:
+            return json({'message': f"Ошибка при создании администратора: {e}"}, status=400)
+    except:
+        return json({'error': 'Invalid JSON'}, status=400)
+
 @app.get("/login", ignore_body=False)
 async def login(request):
     try:
@@ -94,7 +118,7 @@ async def login(request):
                 user_result = await conn.execute(stmt)
                 user = user_result.scalar_one_or_none()
                 if (user and user.password == password):
-                    token = generate_jwt({'id': user.id})
+                    token = generate_jwt({'id': user.id, 'isAdmin': user.isAdmin})
                     return json({'token': token}, status=200)
         except Exception as e:
             return json({'message': f"Ошибка при идентификации пользователя: {e}"}, status=400)
@@ -116,9 +140,12 @@ async def get_user(request, pk):
 @app.route('/test')
 async def test(request):
     user_id = request.ctx.user_id
+    isAdmin = request.ctx.isAdmin
     if user_id is None:
         return json({'error': 'Unauthorized'}, status=401)
     message = f"Welcome, user {user_id}"
+    if (isAdmin):
+        message = message + "\nyou are admin"
     return json({"message": message}, status=200)
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, Column, ForeignKey, String, Numeric
+from sqlalchemy import Integer, Column, ForeignKey, String, Numeric, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -10,9 +10,10 @@ class User(Base):
     full_name = Column(String(50), nullable=False)
     email = Column(String(32), nullable=False, unique=True)
     password = Column(String(32), nullable=False)
+    isAdmin = Column(Boolean, name='is_admin', default=False)
     
     # Связь с аккаунтами пользователя
-    accounts = relationship("Account", back_populates="user")
+    accounts = relationship("Account", back_populates="user", lazy='dynamic')
     def to_dict(self):
         return {"email": self.email, "full_name": self.full_name, "accs": [{"balance": acc.balance} for acc in self.accounts]}
 
