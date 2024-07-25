@@ -4,13 +4,14 @@ import jwt
 
 from sanic.request import Request
 from sanic.response import HTTPResponse, json, text
+from sanic.views import HTTPMethodView
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from config import *
 from database import async_session, async_engine
 from models import User, Account, Transaction, Base
-from auth_utils import generate_jwt
+from auth_utils import generate_jwt, admin_required
 
 _base_model_session_ctx = ContextVar("session")
 
@@ -53,7 +54,7 @@ async def close_session(request, response):
         raise
 
 @app.post("/add_user", ignore_body=False)
-async def create_user(request):
+async def add_user(request):
     try:
         data = request.json
         full_name = data.get('full_name')
@@ -67,7 +68,7 @@ async def create_user(request):
                 user_result = await conn.execute(stmt)
                 user = user_result.scalar_one_or_none()
                 if (user):
-                    return json({'message': "Ошибка при создании пользователя: вы уже зарегистрированы"}, status=400)
+                    return json({'message': "Ошибка при создании пользователя: пользователь с такой почтой уже зарегистрирован"}, status=400)
                 acc = Account(balance=0)
                 user = User(full_name=full_name, email=email, password=password, accounts=[acc])
                 conn.add(user)
@@ -79,7 +80,7 @@ async def create_user(request):
         return json({'error': 'Invalid JSON'}, status=400)
 
 @app.post("/add_admin", ignore_body=False)
-async def create_admin(request):
+async def add_admin(request):
     try:
         data = request.json
         full_name = data.get('full_name')
@@ -126,7 +127,7 @@ async def login(request):
         return json({'error': 'Invalid JSON'}, status=400)
 
 @app.get("/user_info")
-async def get_user(request):
+async def get_user_info(request):
     try:
         user_id = request.ctx.user_id
         session = request.ctx.session
@@ -151,6 +152,24 @@ async def get_accounts_info(request):
             return json(accounts_dicts)
     except Exception as e:
         return json({'message': f"Ошибка при нахождении счетов: {e}"}, status=400)
+
+class UserView(HTTPMethodView):
+    decorators=[admin_required]
+    async def get(self, request):
+        try:
+            session = request.ctx.session
+            async with session.begin() as conn:
+                stmt = select(User).where(User.isAdmin == False)
+                result = await conn.execute(stmt)
+                users = result.scalars().all()
+                users_dicts = [user.to_dict() for user in users]
+                return json(users_dicts)
+        except Exception as e:
+            return json({'message': f"Ошибка при нахождении пользователя: {e}"}, status=400)
+    async def post(self, request):
+        resp = await add_user(request)
+        return resp
+app.add_route(UserView.as_view(), "/users")
 
 @app.route('/test')
 async def test(request):
