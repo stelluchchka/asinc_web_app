@@ -14,7 +14,7 @@ class User(Base):
     # Связь с аккаунтами пользователя
     accounts = relationship("Account", back_populates="user")
     def to_dict(self):
-        return {"name": self.full_name, "accs": [{"id": acc.id} for acc in self.accounts]}
+        return {"email": self.email, "full_name": self.full_name, "accs": [{"balance": acc.balance} for acc in self.accounts]}
 
 class Account(Base):
     __tablename__ = 'account'

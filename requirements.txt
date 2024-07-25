@@ -6,3 +6,4 @@ pydantic_settings
 asyncio
 greenlet
 psycopg2-binary
+PyJWT
