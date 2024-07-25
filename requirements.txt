@@ -1,0 +1,8 @@
+sanic
+sanic-ext
+sqlalchemy
+asyncpg
+pydantic_settings
+asyncio
+greenlet
+psycopg2-binary
