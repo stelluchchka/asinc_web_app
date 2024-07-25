@@ -125,17 +125,32 @@ async def login(request):
     except:
         return json({'error': 'Invalid JSON'}, status=400)
 
-@app.get("/user/<pk:int>")
-async def get_user(request, pk):
+@app.get("/user_info")
+async def get_user(request):
     try:
+        user_id = request.ctx.user_id
         session = request.ctx.session
         async with session.begin() as conn:
-            stmt = select(User).where(User.id == pk).options(selectinload(User.accounts))
+            stmt = select(User).where(User.id == user_id) #.options(selectinload(User.accounts))
             result = await conn.execute(stmt)
             user = result.scalar_one()
+            return json(user.to_dict())
     except Exception as e:
         return json({'message': f"Ошибка при нахождении пользователя: {e}"}, status=400)
-    return json(user.to_dict())
+
+@app.get("/accounts_info")
+async def get_accounts_info(request):
+    try:
+        user_id = request.ctx.user_id
+        session = request.ctx.session
+        async with session.begin() as conn:
+            stmt = select(Account).where(Account.id_user == user_id) #.options(selectinload(User.accounts))
+            result = await conn.execute(stmt)
+            accounts = result.scalars().all()
+            accounts_dicts = [account.to_dict() for account in accounts]
+            return json(accounts_dicts)
+    except Exception as e:
+        return json({'message': f"Ошибка при нахождении счетов: {e}"}, status=400)
 
 @app.route('/test')
 async def test(request):

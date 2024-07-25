@@ -13,9 +13,11 @@ class User(Base):
     isAdmin = Column(Boolean, name='is_admin', default=False)
     
     # Связь с аккаунтами пользователя
-    accounts = relationship("Account", back_populates="user", lazy='dynamic')
+    accounts = relationship("Account", back_populates="user")
     def to_dict(self):
-        return {"email": self.email, "full_name": self.full_name, "accs": [{"balance": acc.balance} for acc in self.accounts]}
+        return {"id": self.id, "email": self.email, "full_name": self.full_name}
+    # def accounts_to_dict(self):
+    #     return {"accounts": [{"balance": acc.balance} for acc in self.accounts]}
 
 class Account(Base):
     __tablename__ = 'account'
@@ -26,6 +28,9 @@ class Account(Base):
     
     # Связь с пользователем
     user = relationship("User", back_populates="accounts")
+
+    def to_dict(self):
+        return {"id": self.id, "balance": self.balance}
 
 class Transaction(Base):
     __tablename__ = 'transaction'
