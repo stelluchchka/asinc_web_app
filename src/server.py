@@ -5,13 +5,13 @@ import jwt
 from sanic.request import Request
 from sanic.response import HTTPResponse, json, text
 from sanic.views import HTTPMethodView
-from sqlalchemy import select
+from sqlalchemy import select, delete, and_
 from sqlalchemy.orm import selectinload
 
 from config import *
 from database import async_session, async_engine
 from models import User, Account, Transaction, Base
-from auth_utils import generate_jwt, admin_required
+from auth_utils import generate_jwt, isAdmin
 
 _base_model_session_ctx = ContextVar("session")
 
@@ -73,7 +73,7 @@ async def add_user(request):
                 user = User(full_name=full_name, email=email, password=password, accounts=[acc])
                 conn.add(user)
                 await conn.commit()
-            return json({'message': user.to_dict()}, status=200)
+            return json({'message': user.info()}, status=200)
         except Exception as e:
             return json({'message': f"Ошибка при создании пользователя: {e}"}, status=400)
     except:
@@ -98,7 +98,7 @@ async def add_admin(request):
                 user = User(full_name=full_name, email=email, password=password, isAdmin=True)
                 conn.add(user)
                 await conn.commit()
-            return json({'message': user.to_dict()}, status=200)
+            return json({'message': user.info()}, status=200)
         except Exception as e:
             return json({'message': f"Ошибка при создании администратора: {e}"}, status=400)
     except:
@@ -132,10 +132,10 @@ async def get_user_info(request):
         user_id = request.ctx.user_id
         session = request.ctx.session
         async with session.begin() as conn:
-            stmt = select(User).where(User.id == user_id) #.options(selectinload(User.accounts))
+            stmt = select(User).where(User.id == user_id)
             result = await conn.execute(stmt)
             user = result.scalar_one()
-            return json(user.to_dict())
+            return json(user.info())
     except Exception as e:
         return json({'message': f"Ошибка при нахождении пользователя: {e}"}, status=400)
 
@@ -145,31 +145,75 @@ async def get_accounts_info(request):
         user_id = request.ctx.user_id
         session = request.ctx.session
         async with session.begin() as conn:
-            stmt = select(Account).where(Account.id_user == user_id) #.options(selectinload(User.accounts))
+            stmt = select(Account).where(Account.id_user == user_id)
             result = await conn.execute(stmt)
             accounts = result.scalars().all()
-            accounts_dicts = [account.to_dict() for account in accounts]
+            accounts_dicts = [account.info() for account in accounts]
             return json(accounts_dicts)
     except Exception as e:
         return json({'message': f"Ошибка при нахождении счетов: {e}"}, status=400)
 
-class UserView(HTTPMethodView):
-    decorators=[admin_required]
+class UsersView(HTTPMethodView):
+    decorators=[isAdmin]
     async def get(self, request):
         try:
             session = request.ctx.session
             async with session.begin() as conn:
-                stmt = select(User).where(User.isAdmin == False)
+                stmt = select(User).options(selectinload(User.accounts)).where(User.isAdmin == False)
                 result = await conn.execute(stmt)
                 users = result.scalars().all()
-                users_dicts = [user.to_dict() for user in users]
+                users_dicts = [user.full_info() for user in users]
                 return json(users_dicts)
         except Exception as e:
             return json({'message': f"Ошибка при нахождении пользователя: {e}"}, status=400)
     async def post(self, request):
         resp = await add_user(request)
         return resp
-app.add_route(UserView.as_view(), "/users")
+app.add_route(UsersView.as_view(), "/users")
+
+class UserView(HTTPMethodView):
+    decorators=[isAdmin]
+    async def delete(self, request, id):
+        try:
+            id = int(id)
+            session = request.ctx.session
+            async with session.begin() as conn:
+                stmt = select(User).where(and_(User.id == id, User.isAdmin == False))
+                result = await conn.execute(stmt)
+                user_to_delete = result.scalar_one_or_none()
+                if not user_to_delete:
+                    return json({'message': "Пользователь не найден или является администратором"}, status=404)
+                await conn.execute(delete(User).where(User.id == id))
+                await conn.commit()
+                return text("Пользователь удален", status=200)
+        except Exception as e:
+            return json({'message': f"Ошибка при удалении пользователя: {e}"}, status=400)
+    async def patch(self, request, id):
+        try:
+            id = int(id)
+            session = request.ctx.session
+            update_data = request.json
+            async with session.begin() as conn:
+                stmt = select(User).options(selectinload(User.accounts)).where(User.id == id)
+                result = await conn.execute(stmt)
+                user = result.scalar_one_or_none()
+                if not user:
+                    return json({'message': "Пользователь не найден"}, status=404)                
+                for key, value in update_data.items():
+                    if key != 'accounts':
+                        setattr(user, key, value)
+                if 'accounts' in update_data:
+                    new_accounts_data = update_data['accounts']
+                    user.accounts.clear()
+                    for account_data in new_accounts_data:
+                        new_account = Account(balance=account_data['balance'])
+                        user.accounts.append(new_account)
+                await conn.commit()
+            return json({'message': "Пользователь успешно обновлен"}, status=200)
+        except Exception as e:
+            return json({'message': f"Ошибка при обновлении пользователя: {str(e)}"}, status=400)
+
+app.add_route(UserView.as_view(), "/users/<id>")
 
 @app.route('/test')
 async def test(request):

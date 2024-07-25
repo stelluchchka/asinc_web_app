@@ -12,7 +12,7 @@ def generate_jwt(user_data):
     token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
     return token
 
-def admin_required(f):
+def isAdmin(f):
     async def wrapper(request: Request, *args, **kwargs):
         if not request.ctx.isAdmin:
             return HTTPResponse(body="Access denied", status=403)
