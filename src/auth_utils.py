@@ -3,7 +3,10 @@ from datetime import datetime, timedelta
 from config import SECRET_KEY
 from sanic.request import Request
 from sanic.response import HTTPResponse
+import hashlib
 
+
+salt = 'some_salt:)'
 
 def generate_jwt(user_data):
     payload = {
@@ -42,3 +45,9 @@ def isUser(f):
         return await f(request, *args, **kwargs)
 
     return wrapper
+
+
+def hash_password(password, salt):
+    data_base_password = password + salt
+    hashed = hashlib.md5(data_base_password.encode())
+    return hashed.hexdigest()

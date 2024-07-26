@@ -1,9 +1,8 @@
-from contextvars import ContextVar
 import hashlib
 import json
 import jwt
 from sanic.request import Request
-from sanic.response import HTTPResponse, json, text
+from sanic.response import json, text
 from sanic.views import HTTPMethodView
 from sqlalchemy import select, delete, and_
 from sqlalchemy.orm import selectinload
@@ -11,10 +10,7 @@ from sqlalchemy.orm import selectinload
 from config import *
 from database import async_session, async_engine
 from models import User, Account, Transaction, Base
-from auth_utils import generate_jwt, invalidate_jwt, isAdmin, isUser
-
-_base_model_session_ctx = ContextVar("session")
-
+from auth_utils import generate_jwt, invalidate_jwt, isAdmin, isUser, salt, hash_password
 
 @app.listener("before_server_start")
 async def create_table(app):
@@ -40,21 +36,9 @@ async def check_jwt(request: Request):
 async def inject_session(request):
     try:
         request.ctx.session = async_session
-        # request.ctx.session_ctx_token = _base_model_session_ctx.set(request.ctx.session)
-        # print(request.ctx.session)
     except Exception as e:
         print({"Ошибка": f"{e}"}, status=401)
         raise
-
-
-# @app.middleware("response")
-# async def close_session(request, response):
-#     try:
-#         if hasattr(request.ctx, "session_ctx_token"):
-#             _base_model_session_ctx.reset(request.ctx.session_ctx_token)
-#     except Exception as e:
-#         print(f"Ошибка: {e}")
-#         raise
 
 
 @app.post("/add_user", ignore_body=False)
@@ -80,8 +64,9 @@ async def add_user(request):
                         status=400,
                     )
                 acc = Account(balance=0)
+                hashed_password = hash_password(password, salt)
                 user = User(
-                    full_name=full_name, email=email, password=password, accounts=[acc]
+                    full_name=full_name, email=email, password=hashed_password, accounts=[acc]
                 )
                 conn.add(user)
                 await conn.commit()
@@ -117,11 +102,12 @@ async def add_admin(request):
                         },
                         status=400,
                     )
+                hashed_password = hash_password(password, salt)
                 user = User(
-                    full_name=full_name, email=email, password=password, isAdmin=True
+                    full_name=full_name, email=email, password=hashed_password, isAdmin=True
                 )
                 conn.add(user)
-                await conn.commmit()
+                await conn.commit()
             return json({"Пользователь": user.info()}, status=200)
         except Exception as e:
             await conn.rollback()
@@ -145,7 +131,8 @@ async def login(request):
                 stmt = select(User).where(User.email == email)
                 result = await conn.execute(stmt)
                 user = result.scalar_one_or_none()
-                if user and user.password == password:
+                hashed_password = hash_password(password, salt)
+                if user and user.password == hashed_password:
                     token = generate_jwt({"id": user.id, "isAdmin": user.isAdmin})
                     headers = {
                         "Content-Type": "application/json",
@@ -280,8 +267,11 @@ class UserView(HTTPMethodView):
                 if not user:
                     return json({"Ошибка": "Пользователь не найден"}, status=404)
                 for key, value in update_data.items():
-                    if key != "accounts":
+                    if key != "accounts" and key != "password":
                         setattr(user, key, value)
+                if "password" in update_data:
+                    hashed_password = hash_password(update_data["password"], salt)
+                    user.password = hashed_password
                 if "accounts" in update_data:
                     new_accounts_data = update_data["accounts"]
                     user.accounts.clear()
