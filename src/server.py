@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from config import *
 from database import async_session, async_engine
 from models import User, Account, Transaction, Base
-from auth_utils import generate_jwt, isAdmin, isUser
+from auth_utils import generate_jwt, invalidate_jwt, isAdmin, isUser
 
 _base_model_session_ctx = ContextVar("session")
 
@@ -52,7 +52,6 @@ async def close_session(request, response):
     try:
         if hasattr(request.ctx, "session_ctx_token"):
             _base_model_session_ctx.reset(request.ctx.session_ctx_token)
-            # request.ctx.session.close()
     except Exception as e:
         print(f"Ошибка: {e}")
         raise
@@ -129,12 +128,11 @@ async def add_admin(request):
         return json({"Ошибка": "Ошибка в JSON"}, status=400)
 
 
-@app.get("/login", ignore_body=False)
+@app.post("/login", ignore_body=False)
 async def login(request):
     try:
-        data = request.json
-        email = data.get("email")
-        password = data.get("password")
+        email = request.json.get("email")
+        password = request.json.get("password")
         if not password or not email:
             return json({"Ошибка": "Нет почты или пароля"}, status=400)
         try:
@@ -145,16 +143,35 @@ async def login(request):
                 user = result.scalar_one_or_none()
                 if user and user.password == password:
                     token = generate_jwt({"id": user.id, "isAdmin": user.isAdmin})
-                    return json({"token": token}, status=200)
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {token}"
+                    }
+                    return json({"Вы успешно вышли авторизировались,\n токен": token}, headers=headers, status=200)
         except Exception as e:
-            return json(
-                {"Ошибка": f"Ошибка при идентификации пользователя: {e}"}, status=400
-            )
+            return json({"Ошибка": f"Ошибка при идентификации пользователя: {e}"}, status=400)
     except:
         return json({"Ошибка": "Неверный JSON"}, status=400)
 
 
-@app.get("/user_info")
+@app.post("/logout")
+async def logout(request):
+    try:
+        if hasattr(request.ctx, "user_id"):
+            del request.ctx.user_id
+        if hasattr(request.ctx, "user_id"):
+            del request.ctx.isAdmin
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return json({"Ошибка": "Токен отсутствует"}, status=401)
+        token = auth_header.split()[1]
+        invalidate_jwt(token)
+        return json({"Сообщение": "Вы успешно вышли из системы"}, status=200)
+    except Exception as e:
+        return json({"Ошибка": f"Ошибка при выходе из системы: {e}"}, status=400)
+
+
+@app.route("/user_info", methods=["GET"], name="get_user_info")
 @isUser
 async def get_user_info(request):
     try:
@@ -169,7 +186,7 @@ async def get_user_info(request):
         return json({"Ошибка": f"Ошибка при нахождении пользователя: {e}"}, status=400)
 
 
-@app.get("/accounts_info")
+@app.route("/accounts_info", methods=["GET"], name="get_accounts_info")
 @isUser
 async def get_accounts_info(request):
     try:
@@ -325,18 +342,6 @@ async def handle_webhook(request):
             {"Ошибка": f"Ошибка при выполнении транзакции: {str(e)}"}, status=400
         )
     return json({"Сообщение": f"Транзакция успешно выполнена, {message}"}, status=200)
-
-
-@app.route("/test", ignore_body=False)
-async def test(request):
-    user_id = request.ctx.user_id
-    isAdmin = request.ctx.isAdmin
-    if user_id is None:
-        return json({"Ошибка": "Unauthorized"}, status=401)
-    message = f"Welcome, user {user_id}"
-    if isAdmin:
-        message = message + "\nyou are admin"
-    return json({"message": message}, status=200)
 
 
 if __name__ == "__main__":

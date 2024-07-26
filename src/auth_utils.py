@@ -9,9 +9,20 @@ def generate_jwt(user_data):
     payload = {
         "user_id": user_data["id"],
         "isAdmin": user_data["isAdmin"],
-        "exp": datetime.utcnow(),
+        "exp": datetime.utcnow() + timedelta(hours=24),
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return token
+
+
+def invalidate_jwt(token):
+    payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    new_payload = {
+        "user_id": payload["user_id"],
+        "isAdmin": payload["isAdmin"],
+        "exp": datetime.utcnow(),
+    }
+    token = jwt.encode(new_payload, SECRET_KEY, algorithm="HS256")
     return token
 
 
@@ -26,18 +37,8 @@ def isAdmin(f):
 
 def isUser(f):
     async def wrapper(request: Request, *args, **kwargs):
-        print("!")
         if not hasattr(request.ctx, "user_id"):
-            print("1")
             return HTTPResponse(body="Access denied", status=403)
-        print("2")
         return await f(request, *args, **kwargs)
 
     return wrapper
-
-
-user_data = {
-    "id": 1,
-    "isAdmin": False,
-}
-print(generate_jwt(user_data))
