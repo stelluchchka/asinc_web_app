@@ -35,5 +35,5 @@ class Account(Base):
 class Transaction(Base):
     __tablename__ = 'transaction'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(String(50), primary_key=True)
     summ = Column(Numeric, nullable=False)

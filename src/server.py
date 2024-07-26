@@ -1,4 +1,6 @@
 from contextvars import ContextVar
+import hashlib
+import hmac
 import json
 import jwt
 
@@ -215,7 +217,48 @@ class UserView(HTTPMethodView):
 
 app.add_route(UserView.as_view(), "/users/<id>")
 
-@app.route('/test')
+@app.post('/handle_webhook')
+async def handle_webhook(request):
+    body = request.json
+    signature = body.get('signature')
+    message = ''.join(f'{v}' for k, v in sorted(body.items()) if k != "signature") + SECRET_KEY
+    calculated_signature = hashlib.sha256(message.encode()).hexdigest()[:64]
+    if signature != calculated_signature:
+        return json({"message" : f"Invalid signature"}, status=403)
+    try:
+        account_id = body.get('account_id')
+        user_id = body.get('user_id')
+        transaction_id = body.get('transaction_id')
+        amount = body.get('amount')
+        session = request.ctx.session
+        async with session.begin() as conn:
+            stmt = select(User).options(selectinload(User.accounts)).where(User.id == user_id)
+            result = await conn.execute(stmt)
+            user = result.scalar_one_or_none()
+            if not user:
+                return json({'message': "Пользователь не найден"}, status=404)
+            stmt = select(Transaction).where(Transaction.id.in_([transaction_id]))
+            result = await conn.execute(stmt)
+            transaction = result.scalar_one_or_none()
+            if transaction:
+                return json({'message': "поле id транзакции должно быть уникально"}, status=404)
+            stmt = select(Account).where(and_(Account.id_user == user_id, Account.id == account_id))
+            result = await conn.execute(stmt)
+            account = result.scalar_one_or_none()
+            if account == None:
+                new_account = Account(balance=amount)
+                user.accounts.append(new_account)
+                conn.add(new_account)
+            else:
+                account.balance = account.balance + amount
+            new_transaction = Transaction(id=transaction_id, summ=amount)
+            conn.add(new_transaction)
+            conn.commit()
+    except Exception as e:
+        return json({'message': f"Ошибка при выполнении транзакции: {str(e)}"}, status=400)
+    return json({"message" : f"Транзакция успешно выполнена, {message}"}, status=200)
+
+@app.route('/test', ignore_body=False)
 async def test(request):
     user_id = request.ctx.user_id
     isAdmin = request.ctx.isAdmin
