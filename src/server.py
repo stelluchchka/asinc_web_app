@@ -33,28 +33,28 @@ async def check_jwt(request: Request):
             request.ctx.user_id = payload["user_id"]
             request.ctx.isAdmin = payload["isAdmin"]
         except jwt.PyJWTError as e:
-            return text(f"Ошибка: {e}")
+            return json(f"Ошибка: {e}")
 
 
 @app.middleware("request")
 async def inject_session(request):
     try:
         request.ctx.session = async_session
-        request.ctx.session_ctx_token = _base_model_session_ctx.set(request.ctx.session)
+        # request.ctx.session_ctx_token = _base_model_session_ctx.set(request.ctx.session)
         # print(request.ctx.session)
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print({"Ошибка": f"{e}"}, status=401)
         raise
 
 
-@app.middleware("response")
-async def close_session(request, response):
-    try:
-        if hasattr(request.ctx, "session_ctx_token"):
-            _base_model_session_ctx.reset(request.ctx.session_ctx_token)
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        raise
+# @app.middleware("response")
+# async def close_session(request, response):
+#     try:
+#         if hasattr(request.ctx, "session_ctx_token"):
+#             _base_model_session_ctx.reset(request.ctx.session_ctx_token)
+#     except Exception as e:
+#         print(f"Ошибка: {e}")
+#         raise
 
 
 @app.post("/add_user", ignore_body=False)
@@ -84,8 +84,10 @@ async def add_user(request):
                     full_name=full_name, email=email, password=password, accounts=[acc]
                 )
                 conn.add(user)
+                await conn.commit()
             return json({"Пользователь": user.info()}, status=200)
         except Exception as e:
+            await conn.rollback()
             return json(
                 {"Ошибка": f"Ошибка при создании пользователя: {e}"}, status=400
             )
@@ -119,8 +121,10 @@ async def add_admin(request):
                     full_name=full_name, email=email, password=password, isAdmin=True
                 )
                 conn.add(user)
+                await conn.commmit()
             return json({"Пользователь": user.info()}, status=200)
         except Exception as e:
+            await conn.rollback()
             return json(
                 {"Ошибка": f"Ошибка при создании администратора: {e}"}, status=400
             )
@@ -147,11 +151,11 @@ async def login(request):
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {token}"
                     }
-                    return json({"Вы успешно вышли авторизировались,\n токен": token}, headers=headers, status=200)
+                    return json({"Вы успешно авторизировались, токен": token}, headers=headers, status=200)
         except Exception as e:
-            return json({"Ошибка": f"Ошибка при идентификации пользователя: {e}"}, status=400)
-    except:
-        return json({"Ошибка": "Неверный JSON"}, status=400)
+            return json({"Ошибка": f"{e}"}, status=400)
+    except Exception as e:
+        return json({"Ошибка": f"{e}"}, status=400)
 
 
 @app.post("/logout")
@@ -165,8 +169,12 @@ async def logout(request):
         if not auth_header:
             return json({"Ошибка": "Токен отсутствует"}, status=401)
         token = auth_header.split()[1]
-        invalidate_jwt(token)
-        return json({"Сообщение": "Вы успешно вышли из системы"}, status=200)
+        token = invalidate_jwt(token)
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}"
+        }
+        return json({"Сообщение": "Вы успешно вышли из системы"}, headers=headers, status=200)
     except Exception as e:
         return json({"Ошибка": f"Ошибка при выходе из системы: {e}"}, status=400)
 
