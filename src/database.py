@@ -8,4 +8,6 @@ async_engine = create_async_engine(
     # max_overflow=10,
 )
 
-async_session = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
+async_session = async_sessionmaker(
+    async_engine, expire_on_commit=False, class_=AsyncSession
+)
