@@ -32,6 +32,8 @@ def invalidate_jwt(token):
 
 def isAdmin(f):
     async def wrapper(request: Request, *args, **kwargs):
+        if not hasattr(request.ctx, "isAdmin"):
+            return HTTPResponse(body="Access denied", status=403)
         if not request.ctx.isAdmin:
             return HTTPResponse(body="Access denied", status=403)
         return await f(request, *args, **kwargs)

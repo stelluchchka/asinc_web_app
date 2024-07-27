@@ -146,17 +146,21 @@ async def login(request):
                 result = await conn.execute(stmt)
                 user = result.scalar_one_or_none()
                 hashed_password = hash_password(password, salt)
-                if user and user.password == hashed_password:
+                if not user:
+                    return json({"Ошибка": "Вы не зарегистрированы"}, status=400)
+                if user.password == hashed_password:
                     token = generate_jwt({"id": user.id, "isAdmin": user.isAdmin})
                     headers = {
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {token}",
                     }
                     return json(
-                        {"Вы успешно авторизировались, токен": token},
+                        {"Вы успешно авторизировались"},
                         headers=headers,
                         status=200,
                     )
+                else:
+                    return json({"Ошибка": "Вы указали неверный пароль"}, status=400)
         except Exception as e:
             return json({"Ошибка": f"{e}"}, status=400)
     except Exception as e:
