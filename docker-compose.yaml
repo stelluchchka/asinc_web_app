@@ -10,10 +10,11 @@ services:
       - postgres_data:/var/lib/postgresql/data/
     ports:
       - "5500:5432"
+    restart: always
 
   server:
     build: .
-    command: python src/server.py
+    command: /async_web_app/entrypoint.sh python src/server.py
     depends_on:
       - db
     environment:

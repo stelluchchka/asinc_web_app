@@ -3,7 +3,7 @@ from sanic import Sanic
 from cors import add_cors_headers
 from options import setup_options
 
-SECRET_KEY = 'gfdmhghif38yrf9ew0jkf32'
+SECRET_KEY = "gfdmhghif38yrf9ew0jkf32"
 
 app = Sanic("MyApp", strict_slashes=False)
 app.config.FORWARDED_SECRET = "gfdmhghif38yrf9ew0jkf32"
@@ -13,6 +13,7 @@ app.config.FORWARDED_SECRET = "gfdmhghif38yrf9ew0jkf32"
 # CORS
 app.register_listener(setup_options, "before_server_start")
 app.register_middleware(add_cors_headers, "response")
+
 
 # DB
 class Settings(BaseSettings):
@@ -25,9 +26,11 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL_asyncpg(self):
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
     def DATABASE_URL_psycopg2(self):
         return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-    model_config=SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env")
+
 
 settings = Settings()
