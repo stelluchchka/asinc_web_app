@@ -13,6 +13,7 @@ class User(Base):
     password = Column(String(32), nullable=False)
     isAdmin = Column(Boolean, name="is_admin", default=False)
     accounts = relationship("Account", back_populates="user")
+    transactions = relationship("Transaction", back_populates="user")
 
     def info(self):
         return {"id": self.id, "email": self.email, "full_name": self.full_name}
@@ -43,3 +44,8 @@ class Transaction(Base):
 
     id = Column(String(50), primary_key=True)
     summ = Column(Numeric, nullable=False)
+    id_user = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"))
+    user = relationship("User", back_populates="transactions")
+
+    def info(self):
+        return {"id": self.id, "summ": self.summ}

@@ -6,7 +6,8 @@ from sanic.response import HTTPResponse
 import hashlib
 
 
-salt = 'some_salt:)'
+salt = "some_salt:)"
+
 
 def generate_jwt(user_data):
     payload = {

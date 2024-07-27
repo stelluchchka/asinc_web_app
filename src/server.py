@@ -10,7 +10,15 @@ from sqlalchemy.orm import selectinload
 from config import *
 from database import async_session, async_engine
 from models import User, Account, Transaction, Base
-from auth_utils import generate_jwt, invalidate_jwt, isAdmin, isUser, salt, hash_password
+from auth_utils import (
+    generate_jwt,
+    invalidate_jwt,
+    isAdmin,
+    isUser,
+    salt,
+    hash_password,
+)
+
 
 @app.listener("before_server_start")
 async def create_table(app):
@@ -66,7 +74,10 @@ async def add_user(request):
                 acc = Account(balance=0)
                 hashed_password = hash_password(password, salt)
                 user = User(
-                    full_name=full_name, email=email, password=hashed_password, accounts=[acc]
+                    full_name=full_name,
+                    email=email,
+                    password=hashed_password,
+                    accounts=[acc],
                 )
                 conn.add(user)
                 await conn.commit()
@@ -104,7 +115,10 @@ async def add_admin(request):
                     )
                 hashed_password = hash_password(password, salt)
                 user = User(
-                    full_name=full_name, email=email, password=hashed_password, isAdmin=True
+                    full_name=full_name,
+                    email=email,
+                    password=hashed_password,
+                    isAdmin=True,
                 )
                 conn.add(user)
                 await conn.commit()
@@ -136,9 +150,13 @@ async def login(request):
                     token = generate_jwt({"id": user.id, "isAdmin": user.isAdmin})
                     headers = {
                         "Content-Type": "application/json",
-                        "Authorization": f"Bearer {token}"
+                        "Authorization": f"Bearer {token}",
                     }
-                    return json({"Вы успешно авторизировались, токен": token}, headers=headers, status=200)
+                    return json(
+                        {"Вы успешно авторизировались, токен": token},
+                        headers=headers,
+                        status=200,
+                    )
         except Exception as e:
             return json({"Ошибка": f"{e}"}, status=400)
     except Exception as e:
@@ -152,16 +170,18 @@ async def logout(request):
             del request.ctx.user_id
         if hasattr(request.ctx, "user_id"):
             del request.ctx.isAdmin
-        auth_header = request.headers.get('Authorization')
+        auth_header = request.headers.get("Authorization")
         if not auth_header:
             return json({"Ошибка": "Токен отсутствует"}, status=401)
         token = auth_header.split()[1]
         token = invalidate_jwt(token)
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}"
+            "Authorization": f"Bearer {token}",
         }
-        return json({"Сообщение": "Вы успешно вышли из системы"}, headers=headers, status=200)
+        return json(
+            {"Сообщение": "Вы успешно вышли из системы"}, headers=headers, status=200
+        )
     except Exception as e:
         return json({"Ошибка": f"Ошибка при выходе из системы: {e}"}, status=400)
 
@@ -196,6 +216,21 @@ async def get_accounts_info(request):
     except Exception as e:
         return json({"Ошибка": f"Ошибка при нахождении счетов: {e}"}, status=400)
 
+
+@app.route("/transactions_info", methods=["GET"], name="get_transactions_info")
+@isUser
+async def get_transactions_info(request):
+    try:
+        user_id = request.ctx.user_id
+        session = request.ctx.session
+        async with session.begin() as conn:
+            stmt = select(Transaction).where(Transaction.id_user == user_id)
+            result = await conn.execute(stmt)
+            transactions = result.scalars().all()
+            transactions_dicts = [transaction.info() for transaction in transactions]
+            return json(transactions_dicts)
+    except Exception as e:
+        return json({"Ошибка": f"Ошибка при нахождении транзакций: {e}"}, status=400)
 
 class UsersView(HTTPMethodView):
     decorators = [isAdmin]
@@ -333,13 +368,13 @@ async def handle_webhook(request):
                 conn.add(new_account)
             else:
                 account.balance = account.balance + amount
-            new_transaction = Transaction(id=transaction_id, summ=amount)
+            new_transaction = Transaction(id=transaction_id, summ=amount, id_user=user_id)
             conn.add(new_transaction)
     except Exception as e:
         return json(
             {"Ошибка": f"Ошибка при выполнении транзакции: {str(e)}"}, status=400
         )
-    return json({"Сообщение": f"Транзакция успешно выполнена, {message}"}, status=200)
+    return json({"Сообщение": f"Транзакция успешно выполнена"}, status=200)
 
 
 if __name__ == "__main__":
