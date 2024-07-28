@@ -80,8 +80,17 @@ async def add_user(request):
                     accounts=[acc],
                 )
                 conn.add(user)
+                token = generate_jwt({"id": user.id, "isAdmin": False})
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {token}",
+                }
                 await conn.commit()
-            return json({"Пользователь": user.info()}, status=200)
+            return json(
+                {"Сообщение": f"Вы успешно создали аккаунт: {user.info()}"},
+                headers=headers,
+                status=200,
+            )
         except Exception as e:
             await conn.rollback()
             return json(
@@ -124,8 +133,17 @@ async def add_admin(request):
                     isAdmin=True,
                 )
                 conn.add(user)
+                token = generate_jwt({"id": user.id, "isAdmin": True})
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {token}",
+                }
                 await conn.commit()
-            return json({"Пользователь": user.info()}, status=200)
+            return json(
+                {"Сообщение": f"Вы успешно создали аккаунт: {user.info()}"},
+                headers=headers,
+                status=200,
+            )
         except Exception as e:
             await conn.rollback()
             return json(
