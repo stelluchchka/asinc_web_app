@@ -43,6 +43,12 @@ def upgrade() -> None:
         "transaction",
         sa.Column("id", sa.String(length=50), nullable=False),
         sa.Column("summ", sa.Numeric(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("(timezone('utc', now()))"),
+            onupdate=sa.func.now(),
+        ),
         sa.Column("id_user", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["id_user"], ["user.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),

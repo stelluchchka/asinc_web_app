@@ -1,6 +1,8 @@
-from sqlalchemy import Integer, Column, ForeignKey, String, Numeric, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy import Integer, Column, ForeignKey, String, Numeric, Boolean, text
+from sqlalchemy.orm import relationship, mapped_column
 from database import Base
+import datetime
+from typing import Annotated
 
 
 class User(Base):
@@ -43,6 +45,13 @@ class Transaction(Base):
 
     id = Column(String(50), primary_key=True)
     summ = Column(Numeric, nullable=False)
+    created_at = Annotated[
+        datetime.datetime,
+        mapped_column(
+            server_default=text("TIMEZONE('utc', now())"),
+            onupdate=datetime.datetime.utcnow,
+        ),
+    ]
     id_user = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"))
     user = relationship("User", back_populates="transactions")
 
