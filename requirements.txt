@@ -7,3 +7,5 @@ asyncio
 greenlet
 psycopg2-binary
 PyJWT
+alembic
+black

@@ -20,11 +20,11 @@ from auth_utils import (
 )
 
 
-@app.listener("before_server_start")
-async def create_table(app):
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+# @app.listener("before_server_start")
+# async def create_table(app):
+#     async with async_engine.begin() as conn:
+#         await conn.run_sync(Base.metadata.drop_all)
+#         await conn.run_sync(Base.metadata.create_all)
 
 
 @app.middleware("request")
@@ -85,7 +85,7 @@ async def add_user(request):
         except Exception as e:
             await conn.rollback()
             return json(
-                {"Ошибка": f"Ошибка при создании пользователя: {e}"}, status=400
+                {"Ошибка": f"Ошибка при создании пользователя: {e}"}, status=500
             )
     except:
         return json({"error": "Invalid JSON"}, status=400)
@@ -155,16 +155,16 @@ async def login(request):
                         "Authorization": f"Bearer {token}",
                     }
                     return json(
-                        {"Вы успешно авторизировались"},
+                        {"Сообщение": "Вы успешно авторизировались"},
                         headers=headers,
                         status=200,
                     )
                 else:
                     return json({"Ошибка": "Вы указали неверный пароль"}, status=400)
         except Exception as e:
-            return json({"Ошибка": f"{e}"}, status=400)
+            return json({"Ошибка": f"{e}"}, status=500)
     except Exception as e:
-        return json({"Ошибка": f"{e}"}, status=400)
+        return json({"Ошибка": f"{e}"}, status=500)
 
 
 @app.post("/logout")
@@ -235,6 +235,7 @@ async def get_transactions_info(request):
             return json(transactions_dicts)
     except Exception as e:
         return json({"Ошибка": f"Ошибка при нахождении транзакций: {e}"}, status=400)
+
 
 class UsersView(HTTPMethodView):
     decorators = [isAdmin]
@@ -372,7 +373,9 @@ async def handle_webhook(request):
                 conn.add(new_account)
             else:
                 account.balance = account.balance + amount
-            new_transaction = Transaction(id=transaction_id, summ=amount, id_user=user_id)
+            new_transaction = Transaction(
+                id=transaction_id, summ=amount, id_user=user_id
+            )
             conn.add(new_transaction)
     except Exception as e:
         return json(
