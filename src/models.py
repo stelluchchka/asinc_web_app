@@ -45,7 +45,7 @@ class Transaction(Base):
 
     id = Column(String(50), primary_key=True)
     summ = Column(Numeric, nullable=False)
-    created_at = Annotated[
+    completed_at = Annotated[
         datetime.datetime,
         mapped_column(
             server_default=text("TIMEZONE('utc', now())"),

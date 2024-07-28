@@ -26,8 +26,8 @@ def upgrade() -> None:
                ('admin@ex.com', 'Admin', '95f32a3f42136e54e5811807763a34d0', TRUE);"
     )
     op.execute(
-        "INSERT INTO account (id, balance, id_user) \
-               VALUES ('1', '0', '1');"
+        "INSERT INTO account (balance, id_user) \
+               VALUES ('0', '1');"
     )
 
 

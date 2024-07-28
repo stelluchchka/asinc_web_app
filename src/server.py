@@ -87,8 +87,11 @@ async def add_user(request):
             return json(
                 {"Ошибка": f"Ошибка при создании пользователя: {e}"}, status=500
             )
-    except:
-        return json({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        await conn.rollback()
+        return json(
+            {"Ошибка": f"Ошибка при создании пользователя: {str(e)}"}, status=500
+        )
 
 
 @app.post("/add_admin", ignore_body=False)

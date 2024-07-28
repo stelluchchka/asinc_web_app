@@ -44,7 +44,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=50), nullable=False),
         sa.Column("summ", sa.Numeric(), nullable=False),
         sa.Column(
-            "created_at",
+            "completed_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("(timezone('utc', now()))"),
             onupdate=sa.func.now(),
